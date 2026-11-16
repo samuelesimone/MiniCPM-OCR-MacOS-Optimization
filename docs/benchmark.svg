@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" width="760" height="300" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">Time to parse "Attention Is All You Need" on an M3 Pro</title>
+  <desc id="d">15 pages: official setup 131.8 s, plain model with 8 parallel requests 104.1 s, optimized routing 39.0 s. 5 pages: 23.0 s, 12.4 s, 13.3 s.</desc>
+  <style>
+    .bg { fill: #fcfcfb; }
+    .t1 { fill: #0b0b0b; } .t2 { fill: #52514e; } .t3 { fill: #8a8984; }
+    .grid { stroke: #e2e1dc; stroke-width: 1; }
+    .base { fill: #a8a7a1; } .best { fill: #2a78d6; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #1a1a19; }
+      .t1 { fill: #f0efec; } .t2 { fill: #c3c2b7; } .t3 { fill: #8f8e86; }
+      .grid { stroke: #33332f; }
+      .base { fill: #6b6a64; } .best { fill: #3987e5; }
+    }
+    text { font-size: 13px; }
+    .h { font-size: 15px; font-weight: 600; }
+    .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+  </style>
+  <rect class="bg" width="760" height="300" rx="10"/>
+  <text class="t1 h" x="24" y="34">Seconds to parse "Attention Is All You Need" · M3 Pro · lower is better</text>
+
+  <!-- x scale: 2.9 px per second from x=290 -->
+  <g class="grid">
+    <line x1="290" x2="290" y1="52" y2="268"/><line x1="435.0" x2="435.0" y1="52" y2="268"/>
+    <line x1="580.0" x2="580.0" y1="52" y2="268"/>
+  </g>
+  <g class="t3" text-anchor="middle" font-size="11">
+    <text x="290" y="286">0 s</text><text x="435.0" y="286">50 s</text><text x="580.0" y="286">100 s</text>
+  </g>
+
+  <text class="t2" x="24" y="70" font-weight="600">15 pages</text>
+  <text class="t1" x="24" y="96">Official setup (DSpark, 1 at a time)</text>
+  <rect class="base" x="290" y="82" width="382.2" height="20" rx="4"/>
+  <text class="t1 v" x="680" y="97">131.8 s</text>
+  <text class="t1" x="24" y="126">Plain model, 8 in parallel</text>
+  <rect class="base" x="290" y="112" width="301.9" height="20" rx="4"/>
+  <text class="t1 v" x="600" y="127">104.1 s</text>
+  <text class="t1" x="24" y="156" font-weight="600">Optimized (8 parallel + DSpark tables)</text>
+  <rect class="best" x="290" y="142" width="113.1" height="20" rx="4"/>
+  <text class="t1 v" x="411" y="157">39.0 s · 3.4× faster</text>
+
+  <text class="t2" x="24" y="192" font-weight="600">5 pages</text>
+  <text class="t1" x="24" y="218">Official setup (DSpark, 1 at a time)</text>
+  <rect class="base" x="290" y="204" width="66.7" height="20" rx="4"/>
+  <text class="t1 v" x="365" y="219">23.0 s</text>
+  <text class="t1" x="24" y="248" font-weight="600">Optimized (8 parallel + DSpark tables)</text>
+  <rect class="best" x="290" y="234" width="38.6" height="20" rx="4"/>
+  <text class="t1 v" x="337" y="249">13.3 s · 1.7× faster</text>
+</svg>

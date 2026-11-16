@@ -1,0 +1,24 @@
+# Upstream MiniCPM-OCR checkout with its venv and ~5 GB of model files: recreated by ./setup.sh
+/MiniCPM-OCR/
+
+# Page server runtime output
+speedtest/runs/
+speedtest/uploads/
+speedtest/warmup.png
+
+# Python
+__pycache__/
+*.py[cod]
+.venv*/
+*.egg-info/
+
+# Test outputs
+samples/*.ndjson
+samples/out-*.md
+
+# Third-party benchmark paper: download it as shown in README.md
+samples/attention*.pdf
+
+# Logs and OS files
+*.log
+.DS_Store

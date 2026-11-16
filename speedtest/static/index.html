@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniCPM-OCR Speed Test</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232a78d6'/%3E%3Cpath d='M9 2 4 9h3l-1 5 5-7H8z' fill='white'/%3E%3C/svg%3E">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f6f4;
+  --surface: #fcfcfb;
+  --surface-2: #f0efec;
+  --border: #e2e1dc;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --muted: #8a8984;
+  --accent: #2a78d6;
+  --accent-soft: #cde2fb;
+  --s-text: #2a78d6;
+  --s-table: #eb6834;
+  --s-title: #1baf7a;
+  --s-formula: #eda100;
+  --s-other: #a8a7a1;
+  --s-layout: #6250d6;
+  --good: #008300;
+  --bad: #c62828;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111110;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --border: #33332f;
+    --text: #f0efec;
+    --text-2: #c3c2b7;
+    --muted: #8f8e86;
+    --accent: #3987e5;
+    --accent-soft: #1c3a5e;
+    --s-text: #3987e5;
+    --s-table: #d95926;
+    --s-title: #199e70;
+    --s-formula: #c98500;
+    --s-other: #6b6a64;
+    --s-layout: #9085e9;
+    --good: #0ca30c;
+    --bad: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111110; --surface: #1a1a19; --surface-2: #232321; --border: #33332f;
+  --text: #f0efec; --text-2: #c3c2b7; --muted: #8f8e86; --accent: #3987e5; --accent-soft: #1c3a5e;
+  --s-text: #3987e5; --s-table: #d95926; --s-title: #199e70; --s-formula: #c98500; --s-other: #6b6a64;
+  --s-layout: #9085e9; --good: #0ca30c; --bad: #e66767;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+}
+.wrap { max-width: 1280px; margin: 0 auto; padding: 24px 16px 64px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 20px; margin-bottom: 20px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); margin: 0 0 12px; font-weight: 600; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--border);
+  border-radius: 999px; background: var(--surface); color: var(--text-2); font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.ok { background: var(--good); } .dot.bad { background: var(--bad); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+.grid { display: grid; gap: 16px; }
+
+#drop { border: 2px dashed var(--border); border-radius: var(--radius); background: var(--surface);
+  padding: 36px 16px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; }
+#drop.over { border-color: var(--accent); background: var(--accent-soft); }
+#drop.busy { cursor: progress; opacity: .7; }
+#drop strong { font-size: 16px; }
+#drop p { margin: 6px 0 0; color: var(--text-2); }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; margin-top: 14px; color: var(--text-2); font-size: 13px; }
+.controls input[type=number] { width: 64px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--text); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.seg label { cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; padding: 5px 14px; color: var(--text-2); font-size: 13px; }
+.seg input:checked + span { background: var(--accent); color: #fff; }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+
+.stage { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 16px 0; color: var(--text-2); }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.step { padding: 3px 10px; border-radius: 999px; background: var(--surface-2); font-size: 12px; color: var(--muted); }
+.step.active { background: var(--accent); color: #fff; }
+.step.done { color: var(--text); }
+#clock { font-variant-numeric: tabular-nums; font-size: 20px; color: var(--text); margin-left: auto; }
+#error { color: var(--bad); white-space: pre-wrap; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.tile .k { font-size: 12px; color: var(--text-2); }
+.tile .v { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; margin-top: 2px; }
+.tile .v small { font-size: 13px; color: var(--text-2); font-weight: 500; margin-left: 2px; }
+.tile .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.tile.hero { border-color: var(--accent); }
+
+#timeline { width: 100%; display: block; }
+#timeline text { fill: var(--text-2); font-size: 11px; }
+#timeline .axis line { stroke: var(--border); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-2); margin-top: 8px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; background: var(--c); vertical-align: -1px; }
+#tip { position: fixed; pointer-events: none; background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.15); display: none; z-index: 10; max-width: 320px; }
+#tip b { font-variant-numeric: tabular-nums; }
+
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+.preview-box { position: relative; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
+.preview-box img { display: block; width: 100%; height: auto; }
+.preview-box svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bbox { fill: transparent; stroke-width: 2; vector-effect: non-scaling-stroke; transition: fill .2s; }
+.bbox.pending { stroke-dasharray: 4 3; opacity: .7; }
+.bbox.active { fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke-width: 3; }
+.bbox.done { fill: color-mix(in srgb, currentColor 10%, transparent); }
+.tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.tabs button { padding: 3px 10px; font-size: 12px; }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+#live { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word;
+  background: var(--surface-2); border-radius: 6px; padding: 12px; min-height: 80px; max-height: 220px; overflow: auto; }
+#live .cur::after { content: "▍"; color: var(--accent); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+#md { max-height: 560px; overflow: auto; padding: 4px 2px; }
+#md table { border-collapse: collapse; margin: 8px 0; }
+#md td, #md th { border: 1px solid var(--border); padding: 4px 8px; }
+#md img { max-width: 100%; }
+.empty { color: var(--muted); font-size: 13px; }
+
+table.data { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.data th { text-align: left; font-weight: 600; color: var(--text-2); border-bottom: 1px solid var(--border); padding: 6px 8px; white-space: nowrap; }
+table.data td { border-bottom: 1px solid var(--border); padding: 6px 8px; }
+table.data td.num, table.data th.num { text-align: right; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.scroll { overflow-x: auto; }
+.blocks-scroll { max-height: 360px; overflow: auto; }
+.hide { display: none !important; }
+.row-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.row-head h2 { margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>MiniCPM-OCR Speed Test</h1>
+    <span style="color:var(--text-2)">Drop a document and see how long each OCR stage takes on this machine</span>
+    <div class="pills">
+      <span class="pill" id="p-fast"><span class="dot"></span>Parallel model</span>
+      <span class="pill" id="p-draft"><span class="dot"></span>DSpark model</span>
+      <span class="pill" id="p-layout"><span class="dot"></span>Layout model</span>
+    </div>
+  </header>
+
+  <div id="drop" tabindex="0" role="button" aria-label="Drop a document or click to choose one">
+    <strong>Drop a PDF or image here</strong>
+    <p>or click to choose a file · PDF, PNG, JPG, WebP, TIFF, BMP, GIF</p>
+    <input type="file" id="file" class="hide" accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.webp,.tif,.tiff">
+  </div>
+  <div class="controls">
+    <div class="seg" role="radiogroup" aria-label="Pipeline mode">
+      <label><input type="radio" name="mode" value="optimized" checked><span>Optimized</span></label>
+      <label><input type="radio" name="mode" value="default"><span>Default</span></label>
+    </div>
+    <span id="mode-desc" class="empty"></span>
+    <label>Max pages <input type="number" id="limit" min="0" value="0"> <span class="empty">(0 = all)</span></label>
+  </div>
+
+  <div class="stage" id="stage-row">
+    <div class="steps">
+      <span class="step" data-s="upload">Upload</span>
+      <span class="step" data-s="layout">Layout detection</span>
+      <span class="step" data-s="recog">Recognition</span>
+      <span class="step" data-s="done">Done</span>
+    </div>
+    <span id="stage-msg"></span>
+    <span id="clock">0.00 s</span>
+  </div>
+  <div id="error"></div>
+
+  <section class="grid" id="results">
+    <div class="tiles">
+      <div class="tile hero"><div class="k">Total time</div><div class="v" id="m-total">–</div><div class="sub" id="m-total-sub">upload to last block, server side</div></div>
+      <div class="tile"><div class="k">Time per page</div><div class="v" id="m-spp">–</div><div class="sub" id="m-pps">–</div></div>
+      <div class="tile"><div class="k">First text token</div><div class="v" id="m-ttft">–</div><div class="sub">from upload received</div></div>
+      <div class="tile"><div class="k">Layout detection</div><div class="v" id="m-layout">–</div><div class="sub" id="m-layout-sub">PP-DocLayoutV3 on CPU</div></div>
+      <div class="tile"><div class="k">Recognition</div><div class="v" id="m-recog">–</div><div class="sub" id="m-recog-sub">MiniCPM-OCR on Metal</div></div>
+      <div class="tile"><div class="k">Output speed</div><div class="v" id="m-cps">–</div><div class="sub" id="m-tps">–</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Timeline</h2>
+      <svg id="timeline" height="120" role="img" aria-label="Timeline of layout detection and block recognition"></svg>
+      <div class="legend">
+        <span style="--c:var(--s-layout)">Layout (per page)</span>
+        <span style="--c:var(--s-text)">Text</span>
+        <span style="--c:var(--s-title)">Title</span>
+        <span style="--c:var(--s-table)">Table</span>
+        <span style="--c:var(--s-formula)">Formula</span>
+        <span style="--c:var(--s-other)">Figure / other</span>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="card">
+        <div class="row-head"><h2>Page</h2><div class="tabs" id="page-tabs"></div></div>
+        <div class="preview-box" id="preview"><p class="empty" style="padding:16px">The page and its detected regions show here.</p></div>
+      </div>
+      <div class="card">
+        <h2>Decoding now</h2>
+        <div id="live"><span class="empty">Recognized text streams here, token by token.</span></div>
+        <h2 style="margin-top:16px">Result</h2>
+        <div id="md"><span class="empty">The parsed Markdown shows here.</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row-head"><h2>Blocks</h2><span class="empty" id="blocks-note"></span></div>
+      <div class="scroll blocks-scroll">
+        <table class="data" id="blocks">
+          <thead><tr><th>Page</th><th>#</th><th>Type</th><th>Model</th><th class="num">Request time</th><th class="num">First token after</th><th class="num">Image tokens</th><th class="num">Output tokens</th><th class="num">Tok/s</th><th class="num">Chars</th><th>Text</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row-head"><h2>Run history</h2><button id="clear-hist">Clear</button></div>
+      <div class="scroll">
+        <table class="data" id="hist">
+          <thead><tr><th>When</th><th>Mode</th><th>File</th><th class="num">Pages</th><th class="num">Blocks</th><th class="num">Chars</th><th class="num">Total</th><th class="num">s / page</th><th class="num">First token</th><th class="num">Layout</th><th class="num">Chars/s</th><th class="num">Tok/s</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="tip"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const fmtS = (s) => s == null || !isFinite(s) ? "–" : (s < 10 ? s.toFixed(2) : s.toFixed(1));
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const sum = (arr, f) => arr.reduce((a, x) => a + (f(x) || 0), 0);
+
+function group(label) {
+  const l = (label || "").toLowerCase();
+  if (l.includes("table")) return "table";
+  if (l.includes("formula") || l.includes("equation")) return "formula";
+  if (l.includes("title")) return "title";
+  if (/(image|chart|figure|seal|picture)/.test(l) && !l.includes("caption")) return "other";
+  return "text";
+}
+const GROUP_NAME = { text: "Text", title: "Title", table: "Table", formula: "Formula", other: "Figure / other" };
+const colorVar = (g) => `var(--s-${g})`;
+const mode = () => document.querySelector('input[name="mode"]:checked').value;
+const MODE_NAME = { optimized: "Optimized", default: "Default" };
+
+/* ---------- status ---------- */
+let modeDesc = {};
+async function refreshStatus() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    modeDesc = s.modes || {};
+    $("#mode-desc").textContent = modeDesc[mode()] || "";
+    const f = s.fast, d = s.draft;
+    setPill("#p-fast", f.ready, f.ready ? `Parallel model · ${f.slots} slots · ${f.warm ? "loaded" : "not loaded yet"}` : "Parallel model offline (:18499)", f.ready && !f.warm);
+    setPill("#p-draft", d.ready, d.ready ? `DSpark model · ${d.warm ? "loaded" : "not loaded yet"}` : "DSpark model offline (:18500)", d.ready && !d.warm);
+    setPill("#p-layout", s.layout_loaded, s.layout_loaded ? `Layout model loaded (${s.layout_load_sec}s)` : "Layout model loading…");
+  } catch { setPill("#p-fast", false, "Server unreachable"); }
+}
+function setPill(sel, ok, text, cold) {
+  $(sel).innerHTML = `<span class="dot ${ok ? (cold ? "" : "ok") : "bad"}"></span>${esc(text)}`;
+}
+document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener("change", () => {
+  $("#mode-desc").textContent = modeDesc[mode()] || "";
+  try { localStorage.setItem("minicpm-ocr-mode", mode()); } catch {}
+}));
+try { const m = localStorage.getItem("minicpm-ocr-mode"); if (m) document.querySelector(`input[name="mode"][value="${m}"]`)?.click(); } catch {}
+refreshStatus(); setInterval(refreshStatus, 5000);
+
+/* ---------- drag & drop ---------- */
+const drop = $("#drop"), input = $("#file");
+let busy = false;
+drop.addEventListener("click", () => !busy && input.click());
+drop.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && !busy) { e.preventDefault(); input.click(); } });
+input.addEventListener("change", () => input.files[0] && run(input.files[0]));
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); if (!busy) drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f && !busy) run(f); });
+// A file dropped anywhere on the page works too, instead of the browser opening it.
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => { e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f && !busy && !drop.contains(e.target)) run(f); });
+
+/* ---------- run state ---------- */
+let R, clockTimer;
+function resetRun(file) {
+  R = { file: file.name, mode: mode(), job: null, pages: new Map(), blocks: new Map(), order: [], layoutEnd: 0,
+        lastBlockEnd: 0, firstToken: null, end: null, chars: 0, deltas: 0, tokens: null, pageMd: new Map(),
+        viewPage: null, t0: performance.now(), serverOffset: null, exact: false };
+  $("#error").textContent = "";
+  $("#live").innerHTML = '<span class="empty">Waiting for the first region…</span>';
+  $("#md").innerHTML = '<span class="empty">The parsed Markdown shows here.</span>';
+  $("#blocks tbody").innerHTML = ""; $("#page-tabs").innerHTML = ""; $("#blocks-note").textContent = "";
+  $("#preview").innerHTML = '<p class="empty" style="padding:16px">Detecting layout…</p>';
+  ["#m-total", "#m-spp", "#m-ttft", "#m-layout", "#m-recog", "#m-cps"].forEach((s) => $(s).textContent = "–");
+  $("#m-pps").textContent = "–"; $("#m-tps").textContent = "–";
+  drawTimeline();
+}
+function setStage(s, msg) {
+  const order = ["upload", "layout", "recog", "done"];
+  const i = order.indexOf(s);
+  document.querySelectorAll(".step").forEach((el) => {
+    const j = order.indexOf(el.dataset.s);
+    el.className = "step" + (j < i ? " done" : j === i ? (s === "done" ? " done active" : " active") : "");
+  });
+  $("#stage-msg").textContent = msg || "";
+}
+
+async function run(file) {
+  busy = true; drop.classList.add("busy");
+  resetRun(file);
+  setStage("upload", `${file.name} · ${(file.size / 1024).toFixed(0)} KB`);
+  clearInterval(clockTimer);
+  clockTimer = setInterval(() => { $("#clock").textContent = ((performance.now() - R.t0) / 1000).toFixed(2) + " s"; }, 50);
+  const fd = new FormData();
+  fd.append("file", file); fd.append("mode", R.mode);
+  fd.append("limit", String(Math.max(0, parseInt($("#limit").value) || 0)));
+  try {
+    const res = await fetch("/api/parse", { method: "POST", body: fd });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.detail || res.statusText); }
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = "", pending = false;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+        if (line) onEvent(JSON.parse(line));
+      }
+      // Redraw the timeline at most once per frame while tokens stream in.
+      if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; drawTimeline(); }); }
+    }
+  } catch (err) {
+    $("#error").textContent = "Error: " + err.message; setStage("done", "failed");
+  } finally {
+    clearInterval(clockTimer);
+    busy = false; drop.classList.remove("busy"); input.value = "";
+    refreshStatus();
+  }
+}
+
+/* ---------- events ---------- */
+const keyOf = (e) => `${e.image_id}:${e.order}`;
+function onEvent(e) {
+  if (e.event === "start") {
+    R.job = e.job; R.serverOffset = (performance.now() - R.t0) / 1000; R.workers = e.workers;
+    setStage("layout", `${e.file} uploaded in ${fmtS(R.serverOffset)} s · ${MODE_NAME[e.mode]} mode`);
+  } else if (e.event === "layout") {
+    // With several layout workers pages finish out of order; a page's layout starts
+    // no earlier than the previous one finished on the same worker, approximated here.
+    const start = R.pages.size < (R.mode === "optimized" ? 2 : 1) ? 0 : R.layoutEnd;
+    R.pages.set(e.image_id, { index: e.index, page: e.page_index, w: e.image_width, h: e.image_height,
+                              start: Math.min(start, e.t), end: e.t, blocks: e.blocks || [] });
+    R.layoutEnd = Math.max(R.layoutEnd, e.t);
+    for (const b of e.blocks || []) {
+      const key = `${e.image_id}:${b.order}`;
+      if (!R.blocks.has(key)) R.blocks.set(key, { key, image_id: e.image_id, page: e.page_index, order: b.order,
+        label: b.label, bbox: b.bbox, status: "pending", text: "", deltas: 0 });
+    }
+    setStage("recog", `${R.pages.size} page(s) laid out · ${R.blocks.size} regions`);
+    addPageTab(e.image_id);
+    // Show the lowest page laid out so far, unless the viewer picked a page.
+    if (!R.viewPage || (!R.pickedPage && e.page_index < R.pages.get(R.viewPage).page)) showPage(e.image_id);
+    updateTiles();
+  } else if (e.event === "delta") {
+    const b = R.blocks.get(keyOf(e)) || newBlock(e);
+    if (e.restart) { b.text = ""; b.deltas = 0; }
+    if (b.firstDelta == null) {
+      b.firstDelta = e.t; b.status = "active";
+      if (R.firstToken == null) R.firstToken = e.t;
+      if (b.image_id === R.viewPage) paintBoxes();
+    }
+    b.text += e.text; b.deltas += 1; R.deltas += 1; b.lastDelta = e.t;
+    R.liveKey = b.key;
+    renderLive();
+  } else if (e.event === "block") {
+    const b = R.blocks.get(keyOf(e)) || newBlock(e);
+    b.end = e.t; b.label = e.label || b.label; b.bbox = e.bbox || b.bbox;
+    b.status = e.status === "ok" ? "done" : (e.status || "done");
+    b.content = e.content || ""; b.chars = b.content.length; R.chars += b.chars;
+    b.start = b.firstDelta ?? b.end; // refined with the SDK's exact request time when the run ends
+    R.lastBlockEnd = Math.max(R.lastBlockEnd, e.t);
+    R.order.push(b.key);
+    if (b.image_id === R.viewPage) paintBoxes();
+    updateTiles();
+    setStage("recog", `${R.order.length} / ${R.blocks.size} regions recognized`);
+  } else if (e.event === "page") {
+    R.pageMd.set(e.index, e.markdown || "");
+    renderMarkdown();
+  } else if (e.event === "done") {
+    R.end = e.t;
+    applyExactTimings(e.crops || []);
+    $("#clock").textContent = fmtS(e.t + (R.serverOffset || 0)) + " s";
+    setStage("done", `${R.pages.size} page(s), ${R.order.length} regions in ${fmtS(e.t)} s · ${MODE_NAME[R.mode]} mode`);
+    $("#live").innerHTML = '<span class="empty">Finished.</span>';
+    updateTiles(); drawTimeline(); renderBlockTable(); saveHistory();
+  } else if (e.event === "error") {
+    $("#error").textContent = e.message; setStage("done", "failed");
+  }
+}
+function newBlock(e) {
+  const b = { key: keyOf(e), image_id: e.image_id, page: e.page_index ?? 0, order: e.order, label: e.label || "",
+              bbox: e.bbox, status: "pending", text: "", deltas: 0 };
+  R.blocks.set(b.key, b); return b;
+}
+function applyExactTimings(crops) {
+  for (const c of crops) {
+    const b = R.blocks.get(`${c.image_id}:${c.order}`);
+    if (!b || b.end == null || c.infer_sec == null) continue;
+    b.infer = c.infer_sec; b.start = Math.max(0, b.end - c.infer_sec);
+    b.promptTokens = c.prompt_tokens; b.tokens = c.completion_tokens;
+  }
+  R.exact = crops.length > 0;
+  R.tokens = sum(crops, (c) => c.completion_tokens);
+}
+const routedTo = (b) => R.mode === "optimized" && group(b.label) === "table" ? "DSpark" : (R.mode === "optimized" ? "Parallel" : "DSpark");
+
+/* ---------- tiles ---------- */
+function recogSpan() {
+  const done = R.order.map((k) => R.blocks.get(k));
+  if (!done.length) return null;
+  return R.lastBlockEnd - Math.min(...done.map((b) => b.start));
+}
+function updateTiles() {
+  const total = R.end ?? R.lastBlockEnd;
+  const pages = R.pages.size;
+  const layoutTotal = R.layoutEnd;
+  if (R.end != null) {
+    $("#m-total").innerHTML = `${fmtS(total)}<small>s</small>`;
+    $("#m-total-sub").textContent = `plus ${fmtS(R.serverOffset)} s upload · ${pages} page(s)`;
+    $("#m-spp").innerHTML = pages ? `${fmtS(total / pages)}<small>s</small>` : "–";
+    $("#m-pps").textContent = pages ? `${(pages / total).toFixed(2)} pages/s` : "–";
+  }
+  if (R.firstToken != null) $("#m-ttft").innerHTML = `${fmtS(R.firstToken)}<small>s</small>`;
+  if (pages) {
+    $("#m-layout").innerHTML = `${fmtS(layoutTotal)}<small>s</small>`;
+    $("#m-layout-sub").textContent = `all pages laid out · ${fmtS(layoutTotal / pages)} s/page on CPU`;
+  }
+  const rs = recogSpan();
+  if (rs != null) {
+    $("#m-recog").innerHTML = `${fmtS(rs)}<small>s</small>`;
+    $("#m-recog-sub").textContent = `${R.order.length} regions · ${R.workers > 1 ? `up to ${R.workers} at once` : "one at a time"}`;
+    $("#m-cps").innerHTML = `${Math.round(R.chars / Math.max(rs, 1e-6))}<small>chars/s</small>`;
+    const toks = R.tokens ?? R.deltas;
+    $("#m-tps").textContent = `${R.tokens != null ? "" : "≈ "}${Math.round(toks / Math.max(rs, 1e-6))} output tokens/s overall`;
+  }
+}
+
+/* ---------- timeline ---------- */
+const svg = $("#timeline"), tip = $("#tip");
+function packLanes(items) {
+  // Greedy interval packing: each region goes in the first row that is free when it starts.
+  const laneEnds = [];
+  for (const it of items.sort((a, b) => a.s - b.s)) {
+    let lane = laneEnds.findIndex((end) => end <= it.s + 1e-3);
+    if (lane < 0) { lane = laneEnds.length; laneEnds.push(0); }
+    laneEnds[lane] = it.e; it.lane = lane;
+  }
+  return Math.max(1, laneEnds.length);
+}
+function drawTimeline() {
+  const W = svg.clientWidth || 800, padL = 92, padR = 12, top = 8, layoutH = 20;
+  const span = Math.max(R?.end ?? 0, R?.lastBlockEnd ?? 0, R?.layoutEnd ?? 0, 1);
+  const x = (t) => padL + (t / span) * (W - padL - padR);
+  const items = [];
+  if (R) {
+    for (const key of R.order) { const b = R.blocks.get(key); items.push({ s: b.start, e: b.end, b }); }
+    // Regions still decoding: draw up to now so parallel work is visible live.
+    for (const b of R.blocks.values()) if (b.status === "active" && b.end == null) items.push({ s: b.firstDelta, e: b.lastDelta ?? b.firstDelta, b, live: true });
+  }
+  const lanes = packLanes(items);
+  const laneH = lanes > 6 ? 12 : lanes > 3 ? 16 : 22;
+  const recTop = top + layoutH + 12, recH = lanes * laneH;
+  const axisY = recTop + recH + 6, H = axisY + 24;
+  let s = `<g class="axis">`;
+  for (const t of niceTicks(span)) s += `<line x1="${x(t)}" x2="${x(t)}" y1="${top}" y2="${axisY}"/><text x="${x(t)}" y="${axisY + 16}" text-anchor="middle">${t}s</text>`;
+  s += `</g><text x="0" y="${top + layoutH / 2 + 4}">Layout</text><text x="0" y="${recTop + Math.min(recH, 22) / 2 + 4}">Recognition</text>`;
+  if (lanes > 1) s += `<text x="0" y="${recTop + Math.min(recH, 22) / 2 + 18}" style="font-size:10px">${lanes} at once</text>`;
+  if (R) {
+    for (const [id, p] of R.pages) s += bar(x(p.start), top + 2, x(p.end) - x(p.start), layoutH - 4, "var(--s-layout)", `layout:${id}`);
+    for (const it of items) s += bar(x(it.s), recTop + it.lane * laneH + 1, x(it.e) - x(it.s), laneH - 3, colorVar(group(it.b.label)), `block:${it.b.key}`, it.live);
+  }
+  svg.setAttribute("height", H);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = s;
+}
+function bar(x0, y, w, h, fill, id, live) {
+  const gap = w > 4 ? 1 : 0; // 2px surface gap between adjacent segments
+  return `<rect data-id="${esc(id)}" x="${x0 + gap}" y="${y}" width="${Math.max(1.5, w - 2 * gap)}" height="${h}" rx="3" fill="${fill}"${live ? ' opacity="0.55"' : ""}/>`;
+}
+function niceTicks(span) {
+  const steps = [0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300];
+  const step = steps.find((st) => span / st <= 8) || 600;
+  const out = []; for (let t = 0; t <= span + 1e-9; t += step) out.push(+t.toFixed(2)); return out;
+}
+svg.addEventListener("mousemove", (e) => {
+  const id = e.target?.dataset?.id; if (!id) { tip.style.display = "none"; return; }
+  let html = "";
+  if (id.startsWith("layout:")) {
+    const p = R.pages.get(id.slice(7));
+    html = `<div>Layout · page ${p.page + 1}</div><b>done at ${fmtS(p.end)} s</b> · ${p.blocks.length} regions`;
+  } else {
+    const b = R.blocks.get(id.slice(6));
+    const dur = (b.end ?? b.lastDelta) - b.start;
+    html = `<div>${esc(GROUP_NAME[group(b.label)])} (${esc(b.label)}) · page ${b.page + 1} #${b.order} · ${routedTo(b)} model</div>
+      <b>${fmtS(dur)} s</b>${b.end == null ? " so far" : ""} · ${b.tokens ?? b.deltas} tokens${b.tokens && b.infer ? ` · ${Math.round(b.tokens / b.infer)} tok/s` : ""}
+      <div style="color:var(--text-2);margin-top:4px">${esc((b.content || b.text || "").slice(0, 120))}${(b.content || b.text || "").length > 120 ? "…" : ""}</div>`;
+  }
+  tip.innerHTML = html; tip.style.display = "block";
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - 330) + "px"; tip.style.top = e.clientY + 14 + "px";
+});
+svg.addEventListener("mouseleave", () => tip.style.display = "none");
+addEventListener("resize", () => drawTimeline());
+
+/* ---------- page preview ---------- */
+function addPageTab(id) {
+  const p = R.pages.get(id);
+  const btn = document.createElement("button");
+  btn.textContent = `Page ${p.page + 1}`; btn.dataset.id = id; btn.dataset.page = p.page;
+  btn.onclick = () => { R.pickedPage = true; showPage(id); };
+  const tabs = $("#page-tabs");
+  const after = [...tabs.children].find((c) => +c.dataset.page > p.page);
+  tabs.insertBefore(btn, after || null);
+}
+function showPage(id) {
+  R.viewPage = id;
+  const p = R.pages.get(id);
+  document.querySelectorAll("#page-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.id === id));
+  $("#preview").innerHTML = `<img alt="Page ${p.page + 1}" src="/api/preview/${R.job}/${p.page}"><svg viewBox="0 0 ${p.w} ${p.h}" preserveAspectRatio="none"></svg>`;
+  paintBoxes();
+}
+function paintBoxes() {
+  const s = $("#preview svg"); if (!s || !R.viewPage) return;
+  let out = "";
+  for (const b of R.blocks.values()) {
+    if (b.image_id !== R.viewPage || !b.bbox) continue;
+    const [x1, y1, x2, y2] = b.bbox;
+    const g = group(b.label);
+    const st = b.status === "active" ? "active" : b.status === "pending" ? "pending" : "done";
+    out += `<rect class="bbox ${st}" x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" style="stroke:${colorVar(g)};color:${colorVar(g)}"><title>${esc(b.label)} #${b.order}</title></rect>`;
+  }
+  s.innerHTML = out;
+}
+
+/* ---------- text output ---------- */
+let liveTimer = null;
+function renderLive() {
+  if (liveTimer) return;
+  liveTimer = setTimeout(() => {
+    liveTimer = null;
+    const b = R.blocks.get(R.liveKey); if (!b || R.end != null) return;
+    const active = [...R.blocks.values()].filter((x) => x.status === "active" && x.end == null).length;
+    $("#live").innerHTML = `<div style="color:var(--text-2);margin-bottom:4px">${active > 1 ? `${active} regions decoding at once · latest: ` : ""}${esc(GROUP_NAME[group(b.label)])} · page ${b.page + 1} #${b.order} · ${b.deltas} tokens</div><span class="cur">${esc(b.text.slice(-1500))}</span>`;
+    $("#live").scrollTop = 1e9;
+  }, 40);
+}
+function renderMarkdown() {
+  const md = [...R.pageMd.entries()].sort((a, b) => a[0] - b[0]).map((x) => x[1]).join("\n\n---\n\n")
+    .replace(/\]\(imgs\//g, `](/api/runimg/${R.job}/`);
+  if (window.marked && window.DOMPurify) $("#md").innerHTML = DOMPurify.sanitize(marked.parse(md));
+  else $("#md").innerHTML = `<pre style="white-space:pre-wrap">${esc(md)}</pre>`;
+}
+function renderBlockTable() {
+  const rows = R.order.map((k) => R.blocks.get(k)).sort((a, b) => a.page - b.page || a.order - b.order);
+  $("#blocks tbody").innerHTML = rows.map((b) => {
+    const g = group(b.label), dur = b.infer ?? (b.end - b.start);
+    const ft = b.firstDelta != null ? b.firstDelta - b.start : null;
+    return `<tr><td>${b.page + 1}</td><td>${b.order}</td>
+      <td><span class="swatch" style="background:${colorVar(g)}"></span>${esc(b.label)}</td>
+      <td>${routedTo(b)}</td>
+      <td class="num">${fmtS(dur)} s</td><td class="num">${ft != null && ft >= 0 ? fmtS(ft) + " s" : "–"}</td>
+      <td class="num">${b.promptTokens ?? "–"}</td><td class="num">${b.tokens ?? b.deltas ?? "–"}</td>
+      <td class="num">${b.tokens && dur > 0 ? Math.round(b.tokens / dur) : "–"}</td><td class="num">${b.chars}</td>
+      <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)">${esc((b.content || "").replace(/\s+/g, " ").slice(0, 200))}</td></tr>`;
+  }).join("");
+  $("#blocks-note").textContent = `${rows.length} regions · ${R.workers > 1 ? `up to ${R.workers} in parallel` : "one at a time"} · times from the SDK`;
+}
+
+/* ---------- history (per-browser convenience) ---------- */
+const HKEY = "minicpm-ocr-speed-history";
+function loadHist() { try { return JSON.parse(localStorage.getItem(HKEY) || "[]"); } catch { return []; } }
+function saveHistory() {
+  const rs = recogSpan() || 0;
+  const row = { when: new Date().toLocaleTimeString(), mode: R.mode, file: R.file, pages: R.pages.size, blocks: R.order.length,
+    chars: R.chars, total: R.end, spp: R.end / Math.max(1, R.pages.size), ttft: R.firstToken, layout: R.layoutEnd,
+    cps: rs ? R.chars / rs : 0, tps: rs ? (R.tokens ?? R.deltas) / rs : 0 };
+  const h = [row, ...loadHist()].slice(0, 50);
+  try { localStorage.setItem(HKEY, JSON.stringify(h)); } catch {}
+  renderHist(h);
+}
+function renderHist(h = loadHist()) {
+  $("#hist tbody").innerHTML = h.length ? h.map((r) => `<tr><td>${esc(r.when)}</td><td>${esc(MODE_NAME[r.mode] || "Default")}</td><td>${esc(r.file)}</td>
+    <td class="num">${r.pages}</td><td class="num">${r.blocks}</td><td class="num">${r.chars}</td>
+    <td class="num">${fmtS(r.total)} s</td><td class="num">${fmtS(r.spp)} s</td><td class="num">${fmtS(r.ttft)} s</td>
+    <td class="num">${fmtS(r.layout)} s</td><td class="num">${Math.round(r.cps)}</td><td class="num">${Math.round(r.tps) || "–"}</td></tr>`).join("")
+    : `<tr><td colspan="12" class="empty">No runs yet.</td></tr>`;
+}
+$("#clear-hist").onclick = () => { try { localStorage.removeItem(HKEY); } catch {} renderHist([]); };
+renderHist();
+drawTimeline();
+</script>
+</body>
+</html>
